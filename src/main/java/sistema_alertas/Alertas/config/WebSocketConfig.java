@@ -10,7 +10,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
   @Override
   public void registerStompEndpoints(StompEndpointRegistry registry) {
-    // ❌ Se quitó .withSockJS() para evitar el error "global is not defined"
+   
     registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
   }
 
