@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import sistema_alertas.Alertas.model.Cita;
@@ -28,6 +29,9 @@ import sistema_alertas.Alertas.service.SeguimientoService;
 public class CitaController {
 
     @Autowired
+    private SimpMessagingTemplate webSocket;
+
+    @Autowired
     private ConsultaService consultaService;
 
     @Autowired
@@ -46,9 +50,6 @@ public class CitaController {
     public List<Cita> obtenerTodas() {
         return citaService.obtenerTodas();
     }
-
-
-    
 
     @GetMapping("/{id}")
     public ResponseEntity<Cita> obtenerPorId(@PathVariable Integer id) {
@@ -88,78 +89,82 @@ public class CitaController {
         return citaService.obtenerTodas().size();
     }
 
-    @PostMapping("/agendar")
-    public ResponseEntity<?> agendarCitaParaConsultasPendientes(
-            @RequestParam Integer consultaId,
-            @RequestParam Integer psicorientadorId,
-            @RequestParam Date fecha) {
+  @PostMapping("/agendar")
+public ResponseEntity<?> agendarCitaParaConsultasPendientes(
+        @RequestParam Integer consultaId,
+        @RequestParam Integer psicorientadorId,
+        @RequestParam Date fecha) {
 
-        Consulta consultaOrigen = consultaService.obtenerPorId(consultaId);
-        if (consultaOrigen == null) {
-            return ResponseEntity.badRequest().body("Consulta no encontrada");
-        }
-
-        Integer estudianteId = consultaOrigen.getEstudiante().getId();
-
-        // Verificar si ya existe una cita pendiente
-        List<Cita> citasActivas = citaService.buscarPorEstudiante(estudianteId).stream()
-                .filter(c -> c.getEstado() == CitaEstado.pendiente)
-                .toList();
-
-        if (!citasActivas.isEmpty()) {
-            return ResponseEntity.badRequest().body("Este estudiante ya tiene una cita pendiente");
-        }
-
-        // Buscar todas las consultas pendientes o null
-        List<Consulta> consultasRelacionadas = consultaService.buscarPorEstudiante(estudianteId).stream()
-                .filter(c -> c.getEstado() == null || c.getEstado() == ConsEstado.pendiente)
-                .toList();
-
-        if (consultasRelacionadas.isEmpty()) {
-            return ResponseEntity.badRequest().body("No hay consultas pendientes para este estudiante");
-        }
-
-        // Crear la cita
-        Cita cita = new Cita();
-        cita.setFecha(fecha);
-        cita.setEstudiante(consultaOrigen.getEstudiante());
-
-        Psicorientador psic = new Psicorientador();
-        psic.setId(psicorientadorId);
-        cita.setPsicorientador(psic);
-
-        Cita citaGuardada = citaService.guardar(cita);
-
-        for (Consulta c : consultasRelacionadas) {
-            Optional<Seguimiento> existente = seguimientoService.obtenerPorConsulta(c.getId());
-
-            if (existente.isEmpty()) {
-                Seguimiento s = new Seguimiento();
-                s.setConsulta(c);
-                s.setFechaInicio(fecha);
-                s.setPsicorientador(psic);
-                Seguimiento seguimientoGuardado = seguimientoService.guardar(s);
-
-                // Relación seguimiento - cita
-                seguimientoCitaService.guardarRelacion(citaGuardada.getId(), seguimientoGuardado.getId());
-
-                // Observación automática
-                ObservacionSeguimiento obs = new ObservacionSeguimiento();
-                obs.setSeguimiento(seguimientoGuardado);
-                obs.setFecha(fecha);
-                obs.setTexto("Seguimiento iniciado automáticamente al agendar cita");
-                observacionSeguimientoService.guardar(obs);
-            } else {
-                seguimientoCitaService.guardarRelacion(citaGuardada.getId(), existente.get().getId());
-            }
-
-            // Siempre actualizar el estado de la consulta
-            c.setEstado(ConsEstado.en_cita);
-            consultaService.guardar(c);
-        }
-
-        return ResponseEntity.ok("Cita creada y asociada a las consultas pendientes");
+    Consulta consultaOrigen = consultaService.obtenerPorId(consultaId);
+    if (consultaOrigen == null) {
+        return ResponseEntity.badRequest().body("Consulta no encontrada");
     }
+
+    Integer estudianteId = consultaOrigen.getEstudiante().getId();
+
+    // Verificar si ya existe una cita pendiente
+    List<Cita> citasActivas = citaService.buscarPorEstudiante(estudianteId).stream()
+            .filter(c -> c.getEstado() == CitaEstado.pendiente)
+            .toList();
+
+    if (!citasActivas.isEmpty()) {
+        return ResponseEntity.badRequest().body("Este estudiante ya tiene una cita pendiente");
+    }
+
+    // Buscar todas las consultas pendientes, en progreso o sin estado
+    List<Consulta> consultasRelacionadas = consultaService.buscarPorEstudiante(estudianteId).stream()
+            .filter(c -> c.getEstado() == null 
+                      || c.getEstado() == ConsEstado.pendiente 
+                      || c.getEstado() == ConsEstado.en_progreso)
+            .toList();
+
+    if (consultasRelacionadas.isEmpty()) {
+        return ResponseEntity.badRequest().body("No hay consultas activas (pendientes o en progreso) para este estudiante");
+    }
+
+    // Crear la cita
+    Cita cita = new Cita();
+    cita.setFecha(fecha);
+    cita.setEstudiante(consultaOrigen.getEstudiante());
+
+    Psicorientador psic = new Psicorientador();
+    psic.setId(psicorientadorId);
+    cita.setPsicorientador(psic);
+
+    Cita citaGuardada = citaService.guardar(cita);
+    webSocket.convertAndSend("/tema/citas", citaGuardada);
+
+    for (Consulta c : consultasRelacionadas) {
+        Optional<Seguimiento> existente = seguimientoService.obtenerPorConsulta(c.getId());
+
+        if (existente.isEmpty()) {
+            Seguimiento s = new Seguimiento();
+            s.setConsulta(c);
+            s.setFechaInicio(fecha);
+            s.setPsicorientador(psic);
+            Seguimiento seguimientoGuardado = seguimientoService.guardar(s);
+
+            // Relación seguimiento - cita
+            seguimientoCitaService.guardarRelacion(citaGuardada.getId(), seguimientoGuardado.getId());
+
+            // Observación automática
+            ObservacionSeguimiento obs = new ObservacionSeguimiento();
+            obs.setSeguimiento(seguimientoGuardado);
+            obs.setFecha(fecha);
+            obs.setTexto("Seguimiento iniciado automáticamente al agendar cita");
+            observacionSeguimientoService.guardar(obs);
+        } else {
+            seguimientoCitaService.guardarRelacion(citaGuardada.getId(), existente.get().getId());
+        }
+
+        // Siempre actualizar el estado de la consulta a en_cita
+        c.setEstado(ConsEstado.en_cita);
+        consultaService.guardar(c);
+    }
+
+    return ResponseEntity.ok("Cita creada y asociada a las consultas pendientes o en progreso");
+}
+
 
     @GetMapping("/estudiante/{id}")
     public ResponseEntity<List<Cita>> obtenerCitaPorEstudiante(@PathVariable Integer id) {

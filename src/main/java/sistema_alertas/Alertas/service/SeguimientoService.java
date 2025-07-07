@@ -21,4 +21,5 @@ public interface SeguimientoService {
 
     public List<Estudiante> obtenerEstudiantesConSeguimientos();
   
+     List<Seguimiento> obtenerPorEstudiante(Integer estudianteId);
 }

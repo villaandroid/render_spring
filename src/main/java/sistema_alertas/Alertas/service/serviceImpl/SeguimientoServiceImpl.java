@@ -59,4 +59,9 @@ public class SeguimientoServiceImpl implements SeguimientoService {
     public List<Estudiante> obtenerEstudiantesConSeguimientos() {
         return seguimientoRepository.obtenerEstudiantesConSeguimientos();
     }
+
+    @Override
+public List<Seguimiento> obtenerPorEstudiante(Integer estudianteId) {
+    return seguimientoRepository.findByConsultaEstudianteId(estudianteId);
+}
 }

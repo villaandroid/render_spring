@@ -18,4 +18,9 @@ public interface SeguimientoRepository extends JpaRepository<Seguimiento, Intege
 
     @Query("SELECT DISTINCT s.consulta.estudiante FROM Seguimiento s")
     List<Estudiante> obtenerEstudiantesConSeguimientos();
+
+    
+List<Seguimiento> findByConsultaEstudianteId(Integer estudianteId);
+
+    
 }

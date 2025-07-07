@@ -22,7 +22,7 @@ public class Seguimiento {
     private Consulta consulta;
 
     @ManyToOne
-    @JoinColumn(name = "PSIC_ID") 
+    @JoinColumn(name = "PSIC_ID")
     private Psicorientador psicorientador;
 
     @Column(name = "SEGU_FECHA_INICIO")
@@ -33,8 +33,13 @@ public class Seguimiento {
     @Temporal(TemporalType.DATE)
     private Date fechaFin;
 
-    public Seguimiento() {
-    }
+    @Column(name = "resumen_general", columnDefinition = "text")
+    private String resumenGeneral;
+
+    @Column(name = "segu_total_obs")
+    private Integer totalObservaciones;
+
+    public Seguimiento() {}
 
     public Seguimiento(Consulta consulta, Psicorientador psicorientador, Date fechaInicio, Date fechaFin) {
         this.consulta = consulta;

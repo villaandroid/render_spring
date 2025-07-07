@@ -32,7 +32,9 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/usuarios/login",
                     "/api/usuarios/generar",
-                    "/api/usuarios/generar-masivo"
+                    "/api/usuarios/generar-masivo",
+                            "/api/sugerencias",
+                            "/api/sugerencias/**" 
                 ).permitAll()
                 .anyRequest().authenticated()
             )

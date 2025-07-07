@@ -1,6 +1,8 @@
 package sistema_alertas.Alertas.controller;
 
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +12,7 @@ import sistema_alertas.Alertas.model.Consulta;
 import sistema_alertas.Alertas.model.enums.ConsEstado;
 import sistema_alertas.Alertas.model.ServicioSms;
 import sistema_alertas.Alertas.service.ConsultaService;
+import sistema_alertas.Alertas.service.WebSocketService;
 import sistema_alertas.Alertas.repository.EstudianteRepository;
 
 @RestController
@@ -17,7 +20,10 @@ import sistema_alertas.Alertas.repository.EstudianteRepository;
 
 public class ConsultaController {
     @Autowired
-private ServicioSms servicioSms;
+    private ServicioSms servicioSms;
+
+    @Autowired
+    private WebSocketService webSocketService;
 
     @Autowired
     private ConsultaService consultaService;
@@ -61,15 +67,16 @@ private ServicioSms servicioSms;
     }
 
     @PostMapping
-    public ResponseEntity<Consulta> guardar(@RequestBody Consulta consulta) {
-        Consulta guardada = consultaService.guardar(consulta);
+public ResponseEntity<Consulta> guardar(@RequestBody Consulta consulta) {
+    Consulta guardada = consultaService.guardar(consulta);
 
-        if (guardada != null && guardada.getEstudiante() != null) {
-            enviarSmsAlEstudiante(guardada);
-        }
-
-        return ResponseEntity.ok(guardada);
+    if (guardada != null && guardada.getEstudiante() != null) {
+        enviarSmsAlEstudiante(guardada);
+        webSocketService.enviarNuevaConsulta(guardada); 
     }
+
+    return ResponseEntity.ok(guardada);
+}
 
     @PutMapping("/{id}")
     public ResponseEntity<Consulta> actualizar(@PathVariable Integer id, @RequestBody Consulta nuevaConsulta) {
@@ -122,18 +129,19 @@ private ServicioSms servicioSms;
     }
 
     @PutMapping("/{id}/estado")
-    @CrossOrigin(origins = "*")
-    public ResponseEntity<?> actualizarEstado(@PathVariable Integer id, @RequestBody String nuevoEstado) {
+    public ResponseEntity<?> actualizarEstado(@PathVariable Integer id, @RequestBody Map<String, String> body) {
         try {
-            ConsEstado estado = ConsEstado.valueOf(nuevoEstado.replace("\"", ""));
+            String nuevoEstado = body.get("estado");
+            ConsEstado estado = ConsEstado.valueOf(nuevoEstado);
             Consulta consulta = consultaService.obtenerPorId(id);
             if (consulta == null)
                 return ResponseEntity.notFound().build();
+
             consulta.setEstado(estado);
             consultaService.guardar(consulta);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body("Estado inválido: " + nuevoEstado);
+            return ResponseEntity.badRequest().body("Estado inválido.");
         }
     }
 
@@ -150,7 +158,7 @@ private ServicioSms servicioSms;
                 String mensaje = "Se ha registrado una alerta para " + nombreCompleto +
                         ". Motivo: " + motivo + ". Nivel: " + nivel + ".";
 
-               String resultado = servicioSms.enviarMensaje(telefono, mensaje);
+                String resultado = servicioSms.enviarMensaje(telefono, mensaje);
                 System.out.println(" Resultado envío SMS: " + resultado);
             } else {
                 System.out.println(" Número de teléfono no disponible para el estudiante.");

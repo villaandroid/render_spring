@@ -27,6 +27,8 @@ public class ObservacionSeguimientoServiceImpl implements ObservacionSeguimiento
         return repository.save(observacion);
     }
 
+    
+
     @Override
     public ObservacionSeguimiento actualizar(Integer id, ObservacionSeguimiento datos) {
         Optional<ObservacionSeguimiento> opt = repository.findById(id);
@@ -48,4 +50,10 @@ public class ObservacionSeguimientoServiceImpl implements ObservacionSeguimiento
         repository.deleteById(id);
         return true;
     }
+
+    @Override
+public List<ObservacionSeguimiento> obtenerObservacionesPorEstudiante(Integer estudianteId) {
+    return repository.findBySeguimientoConsultaEstudianteIdOrderByFechaAsc(estudianteId);
+}
+
 }

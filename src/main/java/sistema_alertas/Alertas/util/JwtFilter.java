@@ -31,10 +31,14 @@ public class JwtFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // ⚠️ Evitar interceptar el login
-        if (path.contains("/api/usuarios/login")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        if (
+    path.contains("/api/usuarios/login") ||
+    path.contains("/api/usuarios/generar") ||
+    path.contains("/api/sugerencias")
+) {
+    filterChain.doFilter(request, response);
+    return;
+}
 
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {

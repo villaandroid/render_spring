@@ -12,4 +12,9 @@ public interface ObservacionSeguimientoService {
     ObservacionSeguimiento actualizar(Integer id, ObservacionSeguimiento datos);
 
     boolean eliminar(Integer id);
+
+
+ List<ObservacionSeguimiento> obtenerObservacionesPorEstudiante(Integer estudianteId);
+
+    
 }
